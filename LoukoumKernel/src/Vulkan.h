@@ -28,6 +28,15 @@ namespace Loukoum
 	};
 
 	/// <summary>
+	/// Swapchain Support Details
+	/// </summary>
+	struct SwapChainSupportDetails {
+		VkSurfaceCapabilitiesKHR capabilities;
+		std::vector<VkSurfaceFormatKHR> formats;
+		std::vector<VkPresentModeKHR> presentModes;
+	};
+
+	/// <summary>
 	/// GPU Utility Class
 	/// </summary>
 	class GPU
@@ -49,7 +58,7 @@ namespace Loukoum
 	class Vulkan
 	{
 	public:
-		Vulkan();
+		Vulkan(GLFWwindow* window);
 		~Vulkan();
 
 		//GPU
@@ -69,17 +78,41 @@ namespace Loukoum
 		void pickPhysicalDevice();
 		void rateGPUs(std::vector<VkPhysicalDevice> devices);
 		QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
+		bool checkDeviceExtensionSupport(VkPhysicalDevice device);
 		void createLogicalDevice();
 
-		//Instance
+		//Instance and surface
 		VkInstance m_instance;
+		VkSurfaceKHR m_surface;
+		GLFWwindow* m_window;
 
 		//GPU
 		std::vector<GPU*> m_allGPU;
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE; 
 		VkDevice m_logicalDevice;
 		VkQueue m_graphicsQueue;
+		const std::vector<const char*> deviceExtensions = {
+			VK_KHR_SWAPCHAIN_EXTENSION_NAME
+		};
 
+		//Swapchain
+		void createSwapchain();
+		SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
+		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
+		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
+		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int width, int height);
+
+		//Swapchain variables
+		VkSwapchainKHR m_swapChain;
+		std::vector<VkImage> m_swapChainImages;
+		VkFormat m_swapChainImageFormat;
+		VkExtent2D m_swapChainExtent;
+
+		//Image view
+		void createImageViews();
+		std::vector<VkImageView> m_swapChainImageViews;
+
+		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 	};
 
