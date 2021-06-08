@@ -52,6 +52,7 @@ namespace Loukoum
 	{
 		std::cout << "Loukoum : init vulkan" << std::endl;
 		m_vulkan = new Vulkan();
+		m_vulkan->printGPUsData();
 		std::cout << "Loukoum : init vulkan ended" << std::endl;
 	}
 
