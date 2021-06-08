@@ -10,6 +10,8 @@
 
 #include <iostream>
 
+#include "Vulkan.h"
+
 namespace Loukoum
 {
 	class LkInstance
@@ -17,6 +19,23 @@ namespace Loukoum
 	public:
 		LkInstance();
 		~LkInstance();
-		void debug();
+		void run();
+
+	private:
+
+		//Vulkan Manager
+		Vulkan* m_vulkan;
+
+		//Loukoum methods
+		void initWindow();
+		void initVulkan();
+		void mainLoop();
+		void cleanUp();
+
+		//GLFW Window
+		GLFWwindow* m_window;
+
+		const uint32_t WIDTH = 800;
+		const uint32_t HEIGHT = 600;
 	};
 }

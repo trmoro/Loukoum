@@ -8,6 +8,8 @@ namespace Loukoum
 	/// </summary>
 	Loukoum::LkInstance::LkInstance()
 	{
+		m_window = nullptr;
+		m_vulkan = nullptr;
 	}
 
 	/// <summary>
@@ -18,31 +20,67 @@ namespace Loukoum
 	}
 
 	/// <summary>
-	/// Debug test
+	/// Run Loukoum Engine
 	/// </summary>
-	void Loukoum::LkInstance::debug()
+	void LkInstance::run()
 	{
+		initWindow();
+		initVulkan();
+		mainLoop();
+		cleanUp();
+	}
+
+	/// <summary>
+	/// Init window
+	/// </summary>
+	void LkInstance::initWindow()
+	{
+		std::cout << "Loukoum : init window" << std::endl;
+
 		glfwInit();
-
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		GLFWwindow* window = glfwCreateWindow(800, 600, "Vulkan window", nullptr, nullptr);
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		m_window = glfwCreateWindow(WIDTH, HEIGHT, "Loukoum", nullptr, nullptr);
 
-		uint32_t extensionCount = 0;
-		vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+		std::cout << "Loukoum : init window ended" << std::endl;
+	}
 
-		std::cout << extensionCount << " extensions supported\n";
+	/// <summary>
+	/// Init Vulkan
+	/// </summary>
+	void LkInstance::initVulkan()
+	{
+		std::cout << "Loukoum : init vulkan" << std::endl;
+		m_vulkan = new Vulkan();
+		std::cout << "Loukoum : init vulkan ended" << std::endl;
+	}
 
-		glm::mat4 matrix;
-		glm::vec4 vec;
-		auto test = matrix * vec;
+	/// <summary>
+	/// Main Loop
+	/// </summary>
+	void LkInstance::mainLoop()
+	{
+		std::cout << "Loukoum : main loop" << std::endl;
 
-		while (!glfwWindowShouldClose(window)) {
+		while (!glfwWindowShouldClose(m_window)) {
 			glfwPollEvents();
 		}
 
-		glfwDestroyWindow(window);
+		std::cout << "Loukoum : main loop ended" << std::endl;
+	}
 
+	/// <summary>
+	/// Clean Up
+	/// </summary>
+	void LkInstance::cleanUp()
+	{
+		std::cout << "Loukoum : clean up" << std::endl;
+
+		delete m_vulkan;
+		glfwDestroyWindow(m_window);
 		glfwTerminate();
+
+		std::cout << "Loukoum : clean up ended" << std::endl;
 	}
 
 }

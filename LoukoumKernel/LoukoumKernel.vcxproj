@@ -158,9 +158,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\LkInstance.cpp" />
+    <ClCompile Include="src\Vulkan.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\LkInstance.h" />
+    <ClInclude Include="src\Vulkan.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

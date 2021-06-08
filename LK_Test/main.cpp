@@ -7,7 +7,7 @@ using namespace Loukoum;
 int main()
 {
 	LkInstance* lk = new LkInstance();
-	lk->debug();
+	lk->run();
 
 	return 0;
 }
