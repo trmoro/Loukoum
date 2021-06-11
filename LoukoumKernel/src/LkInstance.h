@@ -8,6 +8,7 @@
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
 
+#include <fstream>
 #include <iostream>
 
 #include "Vulkan.h"
@@ -19,6 +20,8 @@ namespace Loukoum
 	public:
 		LkInstance();
 		~LkInstance();
+
+		//Run
 		void run();
 
 	private:

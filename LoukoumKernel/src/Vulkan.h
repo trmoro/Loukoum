@@ -8,6 +8,8 @@
 #include <cstring>
 #include <optional>
 
+#include "Shader.h"
+
 namespace Loukoum
 {
 	#ifdef NDEBUG
@@ -64,6 +66,9 @@ namespace Loukoum
 		//GPU
 		void printGPUsData();
 
+		//Create Shader
+		Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
+
 		//Getters / Setters
 		VkInstance getInstance() const;
 	private:
@@ -111,6 +116,9 @@ namespace Loukoum
 		//Image view
 		void createImageViews();
 		std::vector<VkImageView> m_swapChainImageViews;
+
+		//Shaders
+		std::vector<Shader*> m_shaders;
 
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};

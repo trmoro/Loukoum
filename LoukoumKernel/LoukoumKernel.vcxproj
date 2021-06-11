@@ -160,10 +160,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\LkInstance.cpp" />
+    <ClCompile Include="src\Shader.cpp" />
+    <ClCompile Include="src\Utils.cpp" />
     <ClCompile Include="src\Vulkan.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\LkInstance.h" />
+    <ClInclude Include="src\Shader.h" />
+    <ClInclude Include="src\Utils.h" />
     <ClInclude Include="src\Vulkan.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

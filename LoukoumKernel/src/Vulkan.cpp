@@ -8,6 +8,7 @@ namespace Loukoum
 	Vulkan::Vulkan(GLFWwindow* window)
 	{
 		m_window = window;
+		m_shaders = std::vector<Shader*>();
 
 		createInstance();
 		pickPhysicalDevice();
@@ -24,6 +25,11 @@ namespace Loukoum
 		for (auto imageView : m_swapChainImageViews) {
 			vkDestroyImageView(m_logicalDevice, imageView, nullptr);
 		}
+
+		for (Shader* shader : m_shaders) {
+			delete shader;
+		}
+		m_shaders.clear();
 
 		vkDestroySwapchainKHR(m_logicalDevice, m_swapChain, nullptr);
 		vkDestroyDevice(m_logicalDevice, nullptr);
@@ -44,6 +50,19 @@ namespace Loukoum
 			std::cout << "--" << gpu->getName() << " | LkScore : " << gpu->getScore() << std::endl;
 		}
 		std::cout << std::endl;
+	}
+
+	/// <summary>
+	/// Create Shader
+	/// </summary>
+	/// <param name="vertexFilename">>Vertex filename</param>
+	/// <param name="fragmentFilename">Framgnet filename</param>
+	/// <returns></returns>
+	Shader* Vulkan::createShader(std::string vertexFilename, std::string fragmentFilename)
+	{
+		Shader* shader = new Shader(m_logicalDevice, vertexFilename, fragmentFilename);
+		m_shaders.push_back(shader);
+		return shader;
 	}
 
 	/// <summary>
