@@ -117,6 +117,10 @@ namespace Loukoum
 		void createImageViews();
 		std::vector<VkImageView> m_swapChainImageViews;
 
+		//Pipeline
+		void createPipeline();
+		VkPipelineLayout m_pipelineLayout;
+
 		//Shaders
 		std::vector<Shader*> m_shaders;
 

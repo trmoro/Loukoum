@@ -1,0 +1,1 @@
+C:/VulkanSDK/1.2.176.1/Bin32/glslc.exe %1 -o %1%.spv
