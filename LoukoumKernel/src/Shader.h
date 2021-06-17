@@ -17,6 +17,12 @@ namespace Loukoum
 		//Build
 		void build();
 
+		//Get Shader Stages
+		VkPipelineShaderStageCreateInfo getVertexShaderStage();
+		VkPipelineShaderStageCreateInfo getFragmentShaderStage();
+
+		VkPipelineShaderStageCreateInfo* getShaderStages();
+
 		//Shader static functions
 		static VkShaderModule createShaderModule(VkDevice device, const std::vector<char>& code);
 		static VkPipelineShaderStageCreateInfo createVertexShader(VkShaderModule module);

@@ -8,7 +8,9 @@
 #include <cstring>
 #include <optional>
 
-#include "Shader.h"
+//#include "Shader.h"
+
+#include "Utils.h"
 
 namespace Loukoum
 {
@@ -17,6 +19,9 @@ namespace Loukoum
 	#else
 		constexpr bool enableValidationLayers = true;
 	#endif
+
+	constexpr int SHADER_VERTEX = 0;
+	constexpr int SHADER_FRAGMENT = 1;
 
 	/// <summary>
 	/// Queue Family indices
@@ -67,7 +72,7 @@ namespace Loukoum
 		void printGPUsData();
 
 		//Create Shader
-		Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
+		//Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
 
 		//Getters / Setters
 		VkInstance getInstance() const;
@@ -117,12 +122,19 @@ namespace Loukoum
 		void createImageViews();
 		std::vector<VkImageView> m_swapChainImageViews;
 
+		//Shaders
+		VkPipelineShaderStageCreateInfo createShaderStage(std::string filename, int type);
+		//std::vector<Shader*> m_shaders;
+		std::vector<VkShaderModule> m_shaderModules;
+
+		//Render pass
+		VkRenderPass m_renderPass;
+		void createRenderPass();
+
 		//Pipeline
 		void createPipeline();
+		VkPipeline m_graphicsPipeline;
 		VkPipelineLayout m_pipelineLayout;
-
-		//Shaders
-		std::vector<Shader*> m_shaders;
 
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};

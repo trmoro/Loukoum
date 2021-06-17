@@ -8,13 +8,15 @@ namespace Loukoum
 	Vulkan::Vulkan(GLFWwindow* window)
 	{
 		m_window = window;
-		m_shaders = std::vector<Shader*>();
+		//m_shaders = std::vector<Shader*>();
+		m_shaderModules = std::vector<VkShaderModule>();
 
 		createInstance();
 		pickPhysicalDevice();
 		createLogicalDevice();
 		createSwapchain();
 		createImageViews();
+		createRenderPass();
 		createPipeline();
 	}
 
@@ -23,16 +25,22 @@ namespace Loukoum
 	/// </summary>
 	Vulkan::~Vulkan()
 	{
+		vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
 		vkDestroyPipelineLayout(m_logicalDevice, m_pipelineLayout, nullptr);
+		vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
 
 		for (auto imageView : m_swapChainImageViews) {
 			vkDestroyImageView(m_logicalDevice, imageView, nullptr);
 		}
-
+		/*
 		for (Shader* shader : m_shaders) {
 			delete shader;
 		}
 		m_shaders.clear();
+		*/
+
+		for(VkShaderModule shader : m_shaderModules)
+			vkDestroyShaderModule(m_logicalDevice, shader, nullptr);
 
 		vkDestroySwapchainKHR(m_logicalDevice, m_swapChain, nullptr);
 		vkDestroyDevice(m_logicalDevice, nullptr);
@@ -60,13 +68,15 @@ namespace Loukoum
 	/// </summary>
 	/// <param name="vertexFilename">>Vertex filename</param>
 	/// <param name="fragmentFilename">Framgnet filename</param>
-	/// <returns></returns>
+	/// <returns></returns> 
+	/*
 	Shader* Vulkan::createShader(std::string vertexFilename, std::string fragmentFilename)
 	{
 		Shader* shader = new Shader(m_logicalDevice, vertexFilename, fragmentFilename);
 		m_shaders.push_back(shader);
 		return shader;
 	}
+	*/
 
 	/// <summary>
 	/// Get Vulkan Instance
@@ -549,10 +559,99 @@ namespace Loukoum
 	}
 
 	/// <summary>
+	/// Create Shader Stage
+	/// </summary>
+	/// <param name="filename"></param>
+	/// <param name="type"></param>
+	/// <returns></returns>
+	VkPipelineShaderStageCreateInfo Vulkan::createShaderStage(std::string filename, int type)
+	{
+		//Read file
+		const std::vector<char>& code = Utils::readFileBytecode(filename);
+
+		//Create Info
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = code.size();
+		createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+
+		//Create Module
+		VkShaderModule shaderModule;
+		if (vkCreateShaderModule(m_logicalDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create shader module!");
+		}
+		m_shaderModules.push_back(shaderModule);
+
+		//Create stage
+		VkPipelineShaderStageCreateInfo shaderStageInfo{};
+		shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+		shaderStageInfo.module = shaderModule;
+		shaderStageInfo.pName = "main";
+
+		if(type == SHADER_VERTEX)
+			shaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+		else if(type == SHADER_FRAGMENT)
+			shaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		return shaderStageInfo;
+
+	}
+
+	/// <summary>
+	/// Create Render Pass
+	/// </summary>
+	void Vulkan::createRenderPass()
+	{
+		//Color Attachment
+		VkAttachmentDescription colorAttachment{};
+		colorAttachment.format = m_swapChainImageFormat;
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
+		//Stencil / Depth
+		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+
+		//How input and output image are
+		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+		//Attachment reference
+		VkAttachmentReference colorAttachmentRef{};
+		colorAttachmentRef.attachment = 0;
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+		//Subpass
+		VkSubpassDescription subpass{};
+		subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+		subpass.colorAttachmentCount = 1;
+		subpass.pColorAttachments = &colorAttachmentRef;
+
+		//Create Render Pass
+		VkRenderPassCreateInfo renderPassInfo{};
+		renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+		renderPassInfo.attachmentCount = 1;
+		renderPassInfo.pAttachments = &colorAttachment;
+		renderPassInfo.subpassCount = 1;
+		renderPassInfo.pSubpasses = &subpass;
+
+		//Create Render Pass
+		if (vkCreateRenderPass(m_logicalDevice, &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create Render Pass");
+		}
+	}
+
+	/// <summary>
 	/// Create Pipeline
 	/// </summary>
 	void Vulkan::createPipeline()
 	{
+		//Test shader
+		VkPipelineShaderStageCreateInfo vert = createShaderStage("C:/Users/trist/Documents/VS_Project/Loukoum/x64/Debug/shaders/test.vert.spv", SHADER_VERTEX);
+		VkPipelineShaderStageCreateInfo frag = createShaderStage("C:/Users/trist/Documents/VS_Project/Loukoum/x64/Debug/shaders/test.frag.spv", SHADER_FRAGMENT);
+		VkPipelineShaderStageCreateInfo shaderStages[] = { vert, frag };
+
 		//Vertex input
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -613,7 +712,7 @@ namespace Loukoum
 		multisampling.alphaToCoverageEnable = VK_FALSE;
 		multisampling.alphaToOneEnable = VK_FALSE;
 
-		//Color blending
+		//Color blend Attachment
 		VkPipelineColorBlendAttachmentState colorBlendAttachment{};
 		colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 		colorBlendAttachment.blendEnable = VK_FALSE;
@@ -623,6 +722,18 @@ namespace Loukoum
 		colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 		colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
 		colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+		//Color blending
+		VkPipelineColorBlendStateCreateInfo colorBlending{};
+		colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+		colorBlending.logicOpEnable = VK_FALSE;
+		colorBlending.logicOp = VK_LOGIC_OP_COPY;
+		colorBlending.attachmentCount = 1;
+		colorBlending.pAttachments = &colorBlendAttachment;
+		colorBlending.blendConstants[0] = 0.0f;
+		colorBlending.blendConstants[1] = 0.0f;
+		colorBlending.blendConstants[2] = 0.0f;
+		colorBlending.blendConstants[3] = 0.0f;
 
 		//Dynamic states
 		VkDynamicState dynamicStates[] = {
@@ -637,13 +748,42 @@ namespace Loukoum
 		//Pipeline layout
 		VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 		pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-		pipelineLayoutInfo.setLayoutCount = 0;            // Optionnel
-		pipelineLayoutInfo.pSetLayouts = nullptr;         // Optionnel
-		pipelineLayoutInfo.pushConstantRangeCount = 0;    // Optionnel
-		pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optionnel
+		pipelineLayoutInfo.setLayoutCount = 0;
+		pipelineLayoutInfo.pSetLayouts = nullptr;
+		pipelineLayoutInfo.pushConstantRangeCount = 0;
+		pipelineLayoutInfo.pPushConstantRanges = nullptr;
 
+		//Create Pipeline Layout
 		if (vkCreatePipelineLayout(m_logicalDevice, &pipelineLayoutInfo, nullptr, &m_pipelineLayout) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to create Pipeline layout");
+		}
+
+		//Create Pipeline
+		VkGraphicsPipelineCreateInfo pipelineInfo{};
+		pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipelineInfo.stageCount = 2;
+		pipelineInfo.pStages = shaderStages;
+		pipelineInfo.pVertexInputState = &vertexInputInfo;
+		pipelineInfo.pInputAssemblyState = &inputAssembly;
+		pipelineInfo.pViewportState = &viewportState;
+		pipelineInfo.pRasterizationState = &rasterizer;
+		pipelineInfo.pMultisampleState = &multisampling;
+		pipelineInfo.pDepthStencilState = nullptr;
+		pipelineInfo.pColorBlendState = &colorBlending;
+		pipelineInfo.pDynamicState = nullptr;
+
+		//Link pipeline layout and render pas
+		pipelineInfo.layout = m_pipelineLayout;
+		pipelineInfo.renderPass = m_renderPass;
+		pipelineInfo.subpass = 0;
+
+		//No second pipeline
+		pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+		pipelineInfo.basePipelineIndex = -1;
+
+		//Create pipeline
+		if (vkCreateGraphicsPipelines(m_logicalDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_graphicsPipeline) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to create graphical pipeline");
 		}
 	}
 

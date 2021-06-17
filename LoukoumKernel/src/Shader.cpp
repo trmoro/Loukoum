@@ -40,6 +40,33 @@ namespace Loukoum
 	}
 
 	/// <summary>
+	/// Get Vertex Shader Stage
+	/// </summary>
+	/// <returns></returns>
+	VkPipelineShaderStageCreateInfo Shader::getVertexShaderStage()
+	{
+		return m_vertexShader;
+	}
+
+	/// <summary>
+	/// Get Fragment Shader Stage
+	/// </summary>
+	/// <returns></returns>
+	VkPipelineShaderStageCreateInfo Shader::getFragmentShaderStage()
+	{
+		return m_fragmentShader;
+	}
+
+	/// <summary>
+	/// Get Shader Stages
+	/// </summary>
+	/// <returns></returns>
+	VkPipelineShaderStageCreateInfo* Shader::getShaderStages()
+	{
+		return new VkPipelineShaderStageCreateInfo[2]{m_vertexShader,m_fragmentShader};
+	}
+
+	/// <summary>
 	/// Create Shader Module from byte code
 	/// </summary>
 	/// <param name="device"></param>
