@@ -65,6 +65,7 @@ namespace Loukoum
 
 		while (!glfwWindowShouldClose(m_window)) {
 			glfwPollEvents();
+			m_vulkan->drawFrame();
 		}
 
 		std::cout << "Loukoum : main loop ended" << std::endl;

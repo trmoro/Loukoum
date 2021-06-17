@@ -21,6 +21,7 @@ namespace Loukoum
 		createFramebuffers();
 		createCommandPool();
 		createCommandBuffers();
+		createSemaphores();
 	}
 
 	/// <summary>
@@ -28,6 +29,9 @@ namespace Loukoum
 	/// </summary>
 	Vulkan::~Vulkan()
 	{
+		vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphore, nullptr);
+		vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphore, nullptr);
+
 		vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
 
 		for (auto framebuffer : m_swapChainFramebuffers) {
@@ -70,6 +74,54 @@ namespace Loukoum
 			std::cout << "--" << gpu->getName() << " | LkScore : " << gpu->getScore() << std::endl;
 		}
 		std::cout << std::endl;
+	}
+
+	/// <summary>
+	/// Draw Frame
+	/// </summary>
+	void Vulkan::drawFrame()
+	{
+		//Get image index from swapchain
+		uint32_t imageIndex;
+		vkAcquireNextImageKHR(m_logicalDevice, m_swapChain, UINT64_MAX, m_imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+		//Prepare a command to get image
+		VkSubmitInfo submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+		VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore };
+		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+		submitInfo.waitSemaphoreCount = 1;
+		submitInfo.pWaitSemaphores = waitSemaphores;
+		submitInfo.pWaitDstStageMask = waitStages;
+		submitInfo.commandBufferCount = 1;
+		submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
+
+		//Link render finished semaphore
+		VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+		submitInfo.signalSemaphoreCount = 1;
+		submitInfo.pSignalSemaphores = signalSemaphores;
+
+		//Submit command
+		if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+			throw std::runtime_error("Failed to send a Command Buffer");
+		}
+
+		//Presentation Image info
+		VkPresentInfoKHR presentInfo{};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = signalSemaphores;
+
+		//Link Swapchains to Prensentation Info
+		VkSwapchainKHR swapChains[] = { m_swapChain };
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = swapChains;
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = nullptr;
+
+		//Show image
+		vkQueuePresentKHR(m_presentQueue, &presentInfo);
 	}
 
 	/// <summary>
@@ -293,6 +345,18 @@ namespace Loukoum
 			//Graphics family
 			if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
 				indices.graphicsFamily = i;
+
+			//Present family
+			VkBool32 presentSupport = false;
+			vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
+			if (presentSupport) {
+				indices.presentFamily = i;
+			}
+
+			//All queue family
+			if (indices.isComplete()) {
+				break;
+			}
 		}
 
 		return indices;
@@ -341,16 +405,18 @@ namespace Loukoum
 		QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
 
 		//Create device queue info
-		VkDeviceQueueCreateInfo queueCreateInfo{};
-		queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queueCreateInfo.queueFamilyIndex = indices.graphicsFamily.value();
+		std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+		std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
 
-		//Queue count
-		queueCreateInfo.queueCount = 1;
-
-		//Queue priority
 		float queuePriority = 1.0f;
-		queueCreateInfo.pQueuePriorities = &queuePriority;
+		for (uint32_t queueFamily : uniqueQueueFamilies) {
+			VkDeviceQueueCreateInfo queueCreateInfo{};
+			queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+			queueCreateInfo.queueFamilyIndex = queueFamily;
+			queueCreateInfo.queueCount = 1;
+			queueCreateInfo.pQueuePriorities = &queuePriority;
+			queueCreateInfos.push_back(queueCreateInfo);
+		}
 
 		//Features to use
 		VkPhysicalDeviceFeatures deviceFeatures{};
@@ -360,8 +426,8 @@ namespace Loukoum
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
 		//Link queue info
-		createInfo.pQueueCreateInfos = &queueCreateInfo;
-		createInfo.queueCreateInfoCount = 1;
+		createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+		createInfo.pQueueCreateInfos = queueCreateInfos.data();
 
 		//Link features
 		createInfo.pEnabledFeatures = &deviceFeatures;
@@ -384,8 +450,9 @@ namespace Loukoum
 			throw std::runtime_error("Failed to create Logical Device");
 		}
 
-		//Get Graphics Queue
+		//Get Graphics and present Queue
 		vkGetDeviceQueue(m_logicalDevice, indices.graphicsFamily.value(), 0, &m_graphicsQueue);
+		vkGetDeviceQueue(m_logicalDevice, indices.presentFamily.value(), 0, &m_presentQueue);
 	}
 
 	/// <summary>
@@ -418,9 +485,17 @@ namespace Loukoum
 		createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
 		//Swapchain creation info of sharing mode of queue
-		createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.queueFamilyIndexCount = 0;
-		createInfo.pQueueFamilyIndices = nullptr;
+		QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+		uint32_t queueFamilyIndices[] = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+
+		if (indices.graphicsFamily != indices.presentFamily) {
+			createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+			createInfo.queueFamilyIndexCount = 2;
+			createInfo.pQueueFamilyIndices = queueFamilyIndices;
+		}
+		else {
+			createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		}
 
 		//Transformation applied to image (none)
 		createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
@@ -644,6 +719,18 @@ namespace Loukoum
 		renderPassInfo.pAttachments = &colorAttachment;
 		renderPassInfo.subpassCount = 1;
 		renderPassInfo.pSubpasses = &subpass;
+
+		//Subpass dependencies
+		VkSubpassDependency dependency{};
+		dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+		dependency.dstSubpass = 0;
+		dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.srcAccessMask = 0;
+		dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+		renderPassInfo.dependencyCount = 1;
+		renderPassInfo.pDependencies = &dependency;
 
 		//Create Render Pass
 		if (vkCreateRenderPass(m_logicalDevice, &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS) {
@@ -899,6 +986,23 @@ namespace Loukoum
 			}
 		}
 
+	}
+
+	/// <summary>
+	/// Create Semaphores
+	/// </summary>
+	void Vulkan::createSemaphores()
+	{
+		//Info
+		VkSemaphoreCreateInfo semaphoreInfo{};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+		//Creates
+		if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
+			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS) {
+
+			throw std::runtime_error("Failed to create semaphores");
+		}
 	}
 
 	//////////////////////////////////////////////////////////////////////////////

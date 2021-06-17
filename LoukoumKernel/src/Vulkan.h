@@ -7,6 +7,7 @@
 #include <vector>
 #include <cstring>
 #include <optional>
+#include <set>
 
 //#include "Shader.h"
 
@@ -28,9 +29,10 @@ namespace Loukoum
 	/// </summary>
 	struct QueueFamilyIndices {
 		std::optional<uint32_t> graphicsFamily;
+		std::optional<uint32_t> presentFamily;
 
 		bool isComplete() {
-			return graphicsFamily.has_value();
+			return graphicsFamily.has_value() && presentFamily.has_value();
 		}
 	};
 
@@ -71,6 +73,9 @@ namespace Loukoum
 		//GPU
 		void printGPUsData();
 
+		//Draw Frame
+		void drawFrame();
+
 		//Create Shader
 		//Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
 
@@ -101,6 +106,7 @@ namespace Loukoum
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE; 
 		VkDevice m_logicalDevice;
 		VkQueue m_graphicsQueue;
+		VkQueue m_presentQueue;
 		const std::vector<const char*> deviceExtensions = {
 			VK_KHR_SWAPCHAIN_EXTENSION_NAME
 		};
@@ -145,6 +151,11 @@ namespace Loukoum
 		void createCommandBuffers();
 		VkCommandPool m_commandPool;
 		std::vector<VkCommandBuffer> m_commandBuffers;
+
+		//Semaphores
+		void createSemaphores();
+		VkSemaphore m_imageAvailableSemaphore;
+		VkSemaphore m_renderFinishedSemaphore;
 
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
