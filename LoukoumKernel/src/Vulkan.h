@@ -136,6 +136,16 @@ namespace Loukoum
 		VkPipeline m_graphicsPipeline;
 		VkPipelineLayout m_pipelineLayout;
 
+		//Framebuffers
+		void createFramebuffers();
+		std::vector<VkFramebuffer> m_swapChainFramebuffers;
+
+		//Command Pool and buffers
+		void createCommandPool();
+		void createCommandBuffers();
+		VkCommandPool m_commandPool;
+		std::vector<VkCommandBuffer> m_commandBuffers;
+
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 	};
