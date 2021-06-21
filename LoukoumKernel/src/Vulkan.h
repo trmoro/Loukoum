@@ -21,6 +21,8 @@ namespace Loukoum
 		constexpr bool enableValidationLayers = true;
 	#endif
 
+	const int MAX_FRAMES_IN_FLIGHT = 2;
+
 	constexpr int SHADER_VERTEX = 0;
 	constexpr int SHADER_FRAGMENT = 1;
 
@@ -79,8 +81,12 @@ namespace Loukoum
 		//Create Shader
 		//Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
 
-		//Getters / Setters
+		//Getters
 		VkInstance getInstance() const;
+
+		//Setters
+		void setFrameResized(bool b);
+
 	private:
 
 		//Validation Layers
@@ -116,7 +122,11 @@ namespace Loukoum
 		SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
 		VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
 		VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int width, int height);
+		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+
+		//Swapchain recreation
+		void recreateSwapChain();
+		void cleanUpSwapChain();
 
 		//Swapchain variables
 		VkSwapchainKHR m_swapChain;
@@ -152,10 +162,14 @@ namespace Loukoum
 		VkCommandPool m_commandPool;
 		std::vector<VkCommandBuffer> m_commandBuffers;
 
-		//Semaphores
-		void createSemaphores();
-		VkSemaphore m_imageAvailableSemaphore;
-		VkSemaphore m_renderFinishedSemaphore;
+		//Semaphores and Fences : to render
+		void createSyncObjects();
+		std::vector<VkSemaphore> m_imageAvailableSemaphores;
+		std::vector<VkSemaphore> m_renderFinishedSemaphores;
+		std::vector<VkFence> m_inFlightFences;
+		std::vector<VkFence> m_imagesInFlight;
+		size_t m_currentFrame = 0;
+		bool m_framebufferResized = false;
 
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};

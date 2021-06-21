@@ -24,6 +24,9 @@ namespace Loukoum
 		//Run
 		void run();
 
+		//GLFW callbacks
+		static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+
 	private:
 
 		//Vulkan Manager

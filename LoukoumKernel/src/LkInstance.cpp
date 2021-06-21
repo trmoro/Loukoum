@@ -31,6 +31,19 @@ namespace Loukoum
 	}
 
 	/// <summary>
+	/// GLFW Callback called when window resized
+	/// </summary>
+	/// <param name="window"></param>
+	/// <param name="width"></param>
+	/// <param name="height"></param>
+	void LkInstance::framebufferResizeCallback(GLFWwindow* window, int width, int height)
+	{
+		LkInstance* app = reinterpret_cast<LkInstance*>(glfwGetWindowUserPointer(window));
+		if(app->m_vulkan != nullptr)
+			app->m_vulkan->setFrameResized(true);
+	}
+
+	/// <summary>
 	/// Init window
 	/// </summary>
 	void LkInstance::initWindow()
@@ -39,8 +52,10 @@ namespace Loukoum
 
 		glfwInit();
 		glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-		glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+		glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 		m_window = glfwCreateWindow(WIDTH, HEIGHT, "Loukoum", nullptr, nullptr);
+		glfwSetWindowUserPointer(m_window, this);
+		glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
 
 		std::cout << "Loukoum : init window ended" << std::endl;
 	}

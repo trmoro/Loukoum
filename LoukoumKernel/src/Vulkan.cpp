@@ -14,14 +14,9 @@ namespace Loukoum
 		createInstance();
 		pickPhysicalDevice();
 		createLogicalDevice();
-		createSwapchain();
-		createImageViews();
-		createRenderPass();
-		createPipeline();
-		createFramebuffers();
 		createCommandPool();
-		createCommandBuffers();
-		createSemaphores();
+		recreateSwapChain();
+		createSyncObjects();
 	}
 
 	/// <summary>
@@ -29,33 +24,16 @@ namespace Loukoum
 	/// </summary>
 	Vulkan::~Vulkan()
 	{
-		vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphore, nullptr);
-		vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphore, nullptr);
+		vkDeviceWaitIdle(m_logicalDevice);
+		cleanUpSwapChain();
 
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+			vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
+			vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
+			vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
+		}
 		vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
 
-		for (auto framebuffer : m_swapChainFramebuffers) {
-			vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
-		}
-
-		vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
-		vkDestroyPipelineLayout(m_logicalDevice, m_pipelineLayout, nullptr);
-		vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
-
-		for (auto imageView : m_swapChainImageViews) {
-			vkDestroyImageView(m_logicalDevice, imageView, nullptr);
-		}
-		/*
-		for (Shader* shader : m_shaders) {
-			delete shader;
-		}
-		m_shaders.clear();
-		*/
-
-		for(VkShaderModule shader : m_shaderModules)
-			vkDestroyShaderModule(m_logicalDevice, shader, nullptr);
-
-		vkDestroySwapchainKHR(m_logicalDevice, m_swapChain, nullptr);
 		vkDestroyDevice(m_logicalDevice, nullptr);
 		vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 		vkDestroyInstance(m_instance, nullptr);
@@ -81,15 +59,34 @@ namespace Loukoum
 	/// </summary>
 	void Vulkan::drawFrame()
 	{
+		//Wait all fences
+		vkWaitForFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
 		//Get image index from swapchain
 		uint32_t imageIndex;
-		vkAcquireNextImageKHR(m_logicalDevice, m_swapChain, UINT64_MAX, m_imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+		VkResult result = vkAcquireNextImageKHR(m_logicalDevice, m_swapChain, UINT64_MAX, m_imageAvailableSemaphores[m_currentFrame], VK_NULL_HANDLE, &imageIndex);
+
+		//Image not compatible with window
+		if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+			recreateSwapChain();
+			return;
+		}
+		else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+			throw std::runtime_error("Failed to present image to the swapchain");
+		}
+
+		//If frame still in use, wait
+		if (m_imagesInFlight[imageIndex] != VK_NULL_HANDLE) {
+			vkWaitForFences(m_logicalDevice, 1, &m_imagesInFlight[imageIndex], VK_TRUE, UINT64_MAX);
+		}
+		//The new current frame is now in use
+		m_imagesInFlight[imageIndex] = m_inFlightFences[m_currentFrame];
 
 		//Prepare a command to get image
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-		VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphore };
+		VkSemaphore waitSemaphores[] = { m_imageAvailableSemaphores[m_currentFrame] };
 		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		submitInfo.waitSemaphoreCount = 1;
 		submitInfo.pWaitSemaphores = waitSemaphores;
@@ -98,12 +95,13 @@ namespace Loukoum
 		submitInfo.pCommandBuffers = &m_commandBuffers[imageIndex];
 
 		//Link render finished semaphore
-		VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphore };
+		VkSemaphore signalSemaphores[] = { m_renderFinishedSemaphores[m_currentFrame] };
 		submitInfo.signalSemaphoreCount = 1;
 		submitInfo.pSignalSemaphores = signalSemaphores;
 
 		//Submit command
-		if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+		vkResetFences(m_logicalDevice, 1, &m_inFlightFences[m_currentFrame]);
+		if (vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, m_inFlightFences[m_currentFrame]) != VK_SUCCESS) {
 			throw std::runtime_error("Failed to send a Command Buffer");
 		}
 
@@ -121,7 +119,17 @@ namespace Loukoum
 		presentInfo.pResults = nullptr;
 
 		//Show image
-		vkQueuePresentKHR(m_presentQueue, &presentInfo);
+		result = vkQueuePresentKHR(m_presentQueue, &presentInfo);
+		if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebufferResized) {
+			m_framebufferResized = false;
+			recreateSwapChain();
+		}
+		else if (result != VK_SUCCESS) {
+			throw std::runtime_error("Failed to present an image");
+		}
+
+		//Next frame
+		m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 	}
 
 	/// <summary>
@@ -146,6 +154,15 @@ namespace Loukoum
 	VkInstance Vulkan::getInstance() const
 	{
 		return m_instance;
+	}
+
+	/// <summary>
+	/// Set Frame Resized
+	/// </summary>
+	/// <param name="b">boolean</param>
+	void Vulkan::setFrameResized(bool b)
+	{
+		m_framebufferResized = b;
 	}
 
 	/// <summary>
@@ -464,7 +481,7 @@ namespace Loukoum
 		SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice);
 		VkSurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
 		VkPresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-		VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities,800,600);
+		VkExtent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
 
 		//Swapchain image count
 		uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
@@ -593,19 +610,68 @@ namespace Loukoum
 	/// <param name="width">Surface width</param>
 	/// <param name="height">Surface height</param>
 	/// <returns></returns>
-	VkExtent2D Vulkan::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int width, int height)
+	VkExtent2D Vulkan::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities)
 	{
 		if (capabilities.currentExtent.width != UINT32_MAX) {
 			return capabilities.currentExtent;
 		}
 		else {
-			VkExtent2D actualExtent = { width, height };
-
+			int width, height;
+			glfwGetFramebufferSize(m_window, &width, &height);
+			VkExtent2D actualExtent = { static_cast<uint32_t>(width),static_cast<uint32_t>(height) };
 			actualExtent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, actualExtent.width));
 			actualExtent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, actualExtent.height));
-
 			return actualExtent;
 		}
+	}
+
+	/// <summary>
+	/// Recreate Swapchain
+	/// </summary>
+	void Vulkan::recreateSwapChain()
+	{
+		//Get size from GLFW
+		int width = 0, height = 0;
+		glfwGetFramebufferSize(m_window, &width, &height);
+		while (width == 0 || height == 0) {
+			glfwGetFramebufferSize(m_window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		vkDeviceWaitIdle(m_logicalDevice);
+
+		createSwapchain();
+		createImageViews();
+		createRenderPass();
+		createPipeline();
+		createFramebuffers();
+		createCommandBuffers();
+	}
+
+	/// <summary>
+	/// Clean Up Swapchain
+	/// </summary>
+	void Vulkan::cleanUpSwapChain()
+	{
+		for (auto framebuffer : m_swapChainFramebuffers) {
+			vkDestroyFramebuffer(m_logicalDevice, framebuffer, nullptr);
+		}
+
+		vkFreeCommandBuffers(m_logicalDevice, m_commandPool, static_cast<uint32_t>(m_commandBuffers.size()), m_commandBuffers.data());
+
+		vkDestroyPipeline(m_logicalDevice, m_graphicsPipeline, nullptr);
+		vkDestroyPipelineLayout(m_logicalDevice, m_pipelineLayout, nullptr);
+		vkDestroyRenderPass(m_logicalDevice, m_renderPass, nullptr);
+
+		for (auto imageView : m_swapChainImageViews) {
+			vkDestroyImageView(m_logicalDevice, imageView, nullptr);
+		}
+
+		for (VkShaderModule shader : m_shaderModules)
+			vkDestroyShaderModule(m_logicalDevice, shader, nullptr);
+
+		vkDestroySwapchainKHR(m_logicalDevice, m_swapChain, nullptr);
+
 	}
 
 	/// <summary>
@@ -991,17 +1057,31 @@ namespace Loukoum
 	/// <summary>
 	/// Create Semaphores
 	/// </summary>
-	void Vulkan::createSemaphores()
+	void Vulkan::createSyncObjects()
 	{
+		//Resize semaphores and fences
+		m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+		m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
+		m_imagesInFlight.resize(m_swapChainImages.size(), VK_NULL_HANDLE);
+
 		//Info
 		VkSemaphoreCreateInfo semaphoreInfo{};
 		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		VkFenceCreateInfo fenceInfo{};
+		fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		//Creates
-		if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_imageAvailableSemaphore) != VK_SUCCESS ||
-			vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_renderFinishedSemaphore) != VK_SUCCESS) {
+		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+		{
+			if (vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_imageAvailableSemaphores[i]) != VK_SUCCESS ||
+				vkCreateSemaphore(m_logicalDevice, &semaphoreInfo, nullptr, &m_renderFinishedSemaphores[i]) != VK_SUCCESS ||
+				vkCreateFence(m_logicalDevice, &fenceInfo, nullptr, &m_inFlightFences[i]) != VK_SUCCESS)
+			{
 
-			throw std::runtime_error("Failed to create semaphores");
+				throw std::runtime_error("Failed to create sync objects (semaphores and fences)");
+			}
 		}
 	}
 
