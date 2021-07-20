@@ -8,6 +8,9 @@
 #include <cstring>
 #include <optional>
 #include <set>
+#include <array>
+
+#include <glm/glm.hpp>
 
 //#include "Shader.h"
 
@@ -48,6 +51,41 @@ namespace Loukoum
 	};
 
 	/// <summary>
+	/// Vertex structure
+	/// </summary>
+	struct Vertex {
+		glm::vec3 pos;
+		glm::vec4 color;
+
+		static VkVertexInputBindingDescription getBindingDescription() {
+			VkVertexInputBindingDescription bindingDescription{};
+			bindingDescription.binding = 0;
+			bindingDescription.stride = sizeof(Vertex);
+			bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+			return bindingDescription;
+
+		}
+
+		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+			std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+			//Position
+			attributeDescriptions[0].binding = 0;
+			attributeDescriptions[0].location = 0;
+			attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+			attributeDescriptions[0].offset = offsetof(Vertex, pos);
+
+			//Color
+			attributeDescriptions[1].binding = 0;
+			attributeDescriptions[1].location = 1;
+			attributeDescriptions[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+			attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+			return attributeDescriptions;
+		}
+	};
+
+	/// <summary>
 	/// GPU Utility Class
 	/// </summary>
 	class GPU
@@ -77,6 +115,13 @@ namespace Loukoum
 
 		//Draw Frame
 		void drawFrame();
+
+		//Vertex methods
+		void createVertexBuffer();
+		void addVertex(glm::vec3 pos, glm::vec4 color);
+
+		//Recreate Swapchain
+		void recreateSwapChain();
 
 		//Create Shader
 		//Shader* createShader(std::string vertexFilename, std::string fragmentFilename);
@@ -125,7 +170,6 @@ namespace Loukoum
 		VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
 		//Swapchain recreation
-		void recreateSwapChain();
 		void cleanUpSwapChain();
 
 		//Swapchain variables
@@ -170,6 +214,12 @@ namespace Loukoum
 		std::vector<VkFence> m_imagesInFlight;
 		size_t m_currentFrame = 0;
 		bool m_framebufferResized = false;
+
+		//Vertex Methods and Variables
+		uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+		VkBuffer m_vertexBuffer;
+		VkDeviceMemory m_vertexBufferMemory;
+		std::vector<Vertex> m_vertices;
 
 		//Validation Layers
 		const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};

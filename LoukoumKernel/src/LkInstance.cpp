@@ -26,6 +26,13 @@ namespace Loukoum
 	{
 		initWindow();
 		initVulkan();
+
+		m_vulkan->addVertex(glm::vec3(-0.7, -0.5, 0), glm::vec4(1, 0, 0.2, 0.2));
+		m_vulkan->addVertex(glm::vec3(0.5, -0.7, 0), glm::vec4(0.7, 1, 0, 1));
+		m_vulkan->addVertex(glm::vec3(0, 0.8, 0), glm::vec4(0, 0.5, 1, 1));
+		m_vulkan->createVertexBuffer();
+		m_vulkan->recreateSwapChain();
+
 		mainLoop();
 		cleanUp();
 	}

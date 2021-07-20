@@ -10,6 +10,7 @@ namespace Loukoum
 		m_window = window;
 		//m_shaders = std::vector<Shader*>();
 		m_shaderModules = std::vector<VkShaderModule>();
+		m_vertices = std::vector<Vertex>();
 
 		createInstance();
 		pickPhysicalDevice();
@@ -26,6 +27,9 @@ namespace Loukoum
 	{
 		vkDeviceWaitIdle(m_logicalDevice);
 		cleanUpSwapChain();
+
+		vkDestroyBuffer(m_logicalDevice, m_vertexBuffer, nullptr);
+		vkFreeMemory(m_logicalDevice, m_vertexBufferMemory, nullptr);
 
 		for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
 			vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
@@ -130,6 +134,80 @@ namespace Loukoum
 
 		//Next frame
 		m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+	}
+
+	/// <summary>
+	/// Create Vertex Buffer
+	/// </summary>
+	void Vulkan::createVertexBuffer()
+	{
+		//Buffer info
+		VkBufferCreateInfo bufferInfo{};
+		bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		bufferInfo.size = sizeof(Vertex) * m_vertices.size();
+		bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		//Create Buffer
+		if (vkCreateBuffer(m_logicalDevice, &bufferInfo, nullptr, &m_vertexBuffer) != VK_SUCCESS) {
+			throw std::runtime_error("(Vertex Class) Failed to create vertex buffer!");
+		}
+
+		//Memory requirements
+		VkMemoryRequirements memRequirements;
+		vkGetBufferMemoryRequirements(m_logicalDevice, m_vertexBuffer, &memRequirements);
+
+		///Memory allocation info
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memRequirements.size;
+		allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+		//Allocation
+		if (vkAllocateMemory(m_logicalDevice, &allocInfo, nullptr, &m_vertexBufferMemory) != VK_SUCCESS) {
+			throw std::runtime_error("(Vertex Class) Failed to allocate vertex buffer memory!");
+		}
+
+		//Bind Buffer with memory
+		vkBindBufferMemory(m_logicalDevice, m_vertexBuffer, m_vertexBufferMemory, 0);
+
+		void* data;
+		vkMapMemory(m_logicalDevice, m_vertexBufferMemory, 0, bufferInfo.size, 0, &data);
+		memcpy(data, m_vertices.data(), (size_t)bufferInfo.size);
+		vkUnmapMemory(m_logicalDevice, m_vertexBufferMemory);
+	}
+
+	/// <summary>
+	/// Add vertex
+	/// </summary>
+	/// <param name="pos"></param>
+	/// <param name="color"></param>
+	void Vulkan::addVertex(glm::vec3 pos, glm::vec4 color)
+	{
+		m_vertices.push_back({ pos, color });
+	}
+
+	/// <summary>
+	/// Recreate Swapchain
+	/// </summary>
+	void Vulkan::recreateSwapChain()
+	{
+		//Get size from GLFW
+		int width = 0, height = 0;
+		glfwGetFramebufferSize(m_window, &width, &height);
+		while (width == 0 || height == 0) {
+			glfwGetFramebufferSize(m_window, &width, &height);
+			glfwWaitEvents();
+		}
+
+		vkDeviceWaitIdle(m_logicalDevice);
+
+		createSwapchain();
+		createImageViews();
+		createRenderPass();
+		createPipeline();
+		createFramebuffers();
+		createCommandBuffers();
 	}
 
 	/// <summary>
@@ -626,29 +704,6 @@ namespace Loukoum
 	}
 
 	/// <summary>
-	/// Recreate Swapchain
-	/// </summary>
-	void Vulkan::recreateSwapChain()
-	{
-		//Get size from GLFW
-		int width = 0, height = 0;
-		glfwGetFramebufferSize(m_window, &width, &height);
-		while (width == 0 || height == 0) {
-			glfwGetFramebufferSize(m_window, &width, &height);
-			glfwWaitEvents();
-		}
-
-		vkDeviceWaitIdle(m_logicalDevice);
-
-		createSwapchain();
-		createImageViews();
-		createRenderPass();
-		createPipeline();
-		createFramebuffers();
-		createCommandBuffers();
-	}
-
-	/// <summary>
 	/// Clean Up Swapchain
 	/// </summary>
 	void Vulkan::cleanUpSwapChain()
@@ -815,12 +870,15 @@ namespace Loukoum
 		VkPipelineShaderStageCreateInfo shaderStages[] = { vert, frag };
 
 		//Vertex input
+		auto bindingDescription = Vertex::getBindingDescription();
+		auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
 		VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
 		vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-		vertexInputInfo.vertexBindingDescriptionCount = 0;
-		vertexInputInfo.pVertexBindingDescriptions = nullptr;
-		vertexInputInfo.vertexAttributeDescriptionCount = 0;
-		vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+		vertexInputInfo.vertexBindingDescriptionCount = 1;
+		vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+		vertexInputInfo.vertexAttributeDescriptionCount = attributeDescriptions.size();
+		vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
 
 		//Input assembly : how vertices are linked
 		VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
@@ -1041,9 +1099,10 @@ namespace Loukoum
 
 			//Bind Pipeline and draw
 			vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-			int vertexCount = 3;
-			int instanceCount = 1;
-			vkCmdDraw(m_commandBuffers[i], vertexCount, instanceCount, 0, 0);
+			VkBuffer vertexBuffers[] = {m_vertexBuffer };
+			VkDeviceSize offsets[] = { 0 };
+			vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
+			vkCmdDraw(m_commandBuffers[i], static_cast<uint32_t>(m_vertices.size()), 1, 0, 0);
 
 			//Finish render
 			vkCmdEndRenderPass(m_commandBuffers[i]);
@@ -1083,6 +1142,27 @@ namespace Loukoum
 				throw std::runtime_error("Failed to create sync objects (semaphores and fences)");
 			}
 		}
+	}
+
+	/// <summary>
+	/// Find suitable memory type for memory allocation
+	/// </summary>
+	/// <param name="typeFilter"></param>
+	/// <param name="properties"></param>
+	/// <returns></returns>
+	uint32_t Vulkan::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+	{
+		VkPhysicalDeviceMemoryProperties memProperties;
+		vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
+
+		for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
+			if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+				return i;
+			}
+		}
+
+		throw std::runtime_error("Failed to find suitable memory type!");
+
 	}
 
 	//////////////////////////////////////////////////////////////////////////////
